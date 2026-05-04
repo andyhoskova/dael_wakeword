@@ -1,0 +1,212 @@
+# Wake Word Detection Training Configuration - Improved for Better Performance
+# =========================================================================
+
+# Model Architecture Configuration - ENHANCED FOR 2060 SUPER
+model:
+  input_features: 186                # Number of mel-spectrogram frequency bins
+  cnn_hidden: 512                   # INCREASED from 256 -> 512 for more capacity
+  transformer_heads: 16             # INCREASED from 8 -> 16 for better attention
+  transformer_layers: 6             # INCREASED from 4 -> 6 for deeper modeling
+  transformer_hidden: 1024          # INCREASED from 512 -> 1024 for more capacity
+  dropout_rate: 0.15                # REDUCED from 0.2 -> 0.15 (less aggressive regularization)
+  classifier_hidden: [256, 128, 64] # ADDED extra layer for better classification
+
+# Training Configuration - OPTIMIZED FOR LONGER, BETTER TRAINING
+training:
+  num_epochs: 200                   # INCREASED from 100 -> 200 epochs
+  device: 'auto'                    
+  validation_frequency: 1           
+  
+  # Early Stopping Configuration - MUCH MORE PATIENT
+  early_stopping_patience: 35       # INCREASED from 15 -> 35 epochs
+  early_stopping_min_delta: 0.0005  # REDUCED from 0.001 -> 0.0005 (more sensitive)
+  
+  # Checkpoint Management
+  keep_best_checkpoints: 5          # INCREASED from 3 -> 5
+  keep_last_checkpoints: 3          # INCREASED from 2 -> 3
+  
+  # Optimizer Configuration - IMPROVED SETTINGS
+  optimizer:
+    type: 'adamw'                   
+    learning_rate: 0.0002           # INCREASED from 0.0001 -> 0.0002 (faster initial learning)
+    weight_decay: 0.005             # REDUCED from 0.01 -> 0.005 (less regularization)
+    betas: [0.9, 0.999]            
+  
+  # Learning Rate Scheduler Configuration - MORE PATIENT
+  scheduler:
+    enabled: true                   
+    type: 'reduce_on_plateau'       
+    factor: 0.7                     # LESS aggressive: 0.5 -> 0.7
+    patience: 12                    # MORE patient: 7 -> 12 epochs
+    min_lr: 0.00000005             # LOWER minimum: 1e-7 -> 5e-8
+  
+  # Loss Function Configuration
+  criterion:
+    type: 'bce'                     
+    pos_weight: null                
+  
+  # Gradient Clipping Configuration
+  gradient_clipping:
+    enabled: true                   
+    max_norm: 2.0                   # INCREASED from 1.0 -> 2.0 (allow larger gradients)
+
+# Data Configuration - ENHANCED AUGMENTATION
+data:
+  batch_size: 48                    # REDUCED from 64 -> 48 (larger model needs smaller batches)
+  num_workers: 6                    # INCREASED from 4 -> 6 for faster data loading
+  
+  # SpecAugment Configuration - MORE AGGRESSIVE AUGMENTATION
+  use_specaugment: true             
+  spec_aug_prob: 0.5                # INCREASED from 0.3 -> 0.5 (50% augmentation)
+  spec_aug_params:
+    freq_mask_param: 25             # INCREASED from 20 -> 25
+    time_mask_param: 20             # INCREASED from 15 -> 20
+    num_freq_masks: 2               # INCREASED from 1 -> 2
+    num_time_masks: 2               # INCREASED from 1 -> 2
+  
+  # Sequence Processing Configuration
+  max_sequence_length: null         
+  padding_value: 0.0                
+  truncation_strategy: 'pad_truncate'  
+  
+  # Class Imbalance Handling
+  use_weighted_sampling: true       
+
+# File Paths Configuration
+paths:
+  # Data Paths
+  features_root_dir: 'data/features'                    
+  train_split: 'data/splits/train_split.txt'           
+  val_split: 'data/splits/val_split.txt'               
+  test_split: 'data/splits/test_split.txt'             
+  
+  # Model Output Paths
+  checkpoint_dir: 'models/checkpoints'                 
+  final_models_dir: 'models/final_models'              
+  export_dir: 'models/exported'                        
+  
+  # Logging Paths
+  log_dir_training: 'logs/training'                    
+  log_dir_models: 'logs/models'                        
+  log_dir_dataset_loader: 'logs/dataset_loader'        
+  models_architecture: 'models/architectures'          
+
+# TorchScript Export Configuration
+export:
+  preferred_methods: ['script', 'trace', 'state_dict'] 
+  
+  torchscript:
+    optimize_for_inference: true     
+    strict_mode: false              
+    
+  validation:
+    verify_outputs: true            
+    tolerance: 1e-6                 
+    test_batch_sizes: [1, 4, 16]   
+
+# Performance Optimization - ENHANCED FOR 2060 SUPER
+performance:
+  memory_efficient: true            
+  
+  torch_compile:
+    enabled: false                  
+  
+  # Mixed precision training - ENABLED FOR FASTER TRAINING
+  mixed_precision:
+    enabled: true                   # ENABLED for faster training on RTX 2060 Super
+    autocast: true
+    grad_scaler: true
+
+# Debugging and Validation
+debug:
+  validate_architecture: true       
+  test_torchscript_compat: true    
+  detect_anomaly: false             
+  profile_memory: false             
+  save_intermediate_models: false   
+  verbose_export: true              
+
+# Enhanced Configuration for Better Training
+
+# WARMUP SCHEDULER - NEW SECTION
+warmup:
+  enabled: true                     # Enable learning rate warmup
+  warmup_epochs: 5                  # Warm up for first 5 epochs
+  warmup_factor: 0.1                # Start at 10% of base LR
+
+# ADVANCED REGULARIZATION - NEW SECTION
+regularization:
+  label_smoothing: 0.1              # Add label smoothing for better generalization
+  mixup_alpha: 0.2                  # Add mixup augmentation
+  cutmix_alpha: 0.0                 # Disable cutmix (not suitable for spectrograms)
+
+# MODEL CHECKPOINTING - ENHANCED
+checkpointing:
+  save_optimizer_state: true       
+  save_scheduler_state: true       
+  compress_checkpoints: false      
+  verify_checkpoints: true         
+  save_frequency: 5                 # Save checkpoint every 5 epochs
+  
+# ADVANCED DATA LOADING - NEW SECTION
+data_loading:
+  pin_memory: true                 
+  persistent_workers: true        
+  prefetch_factor: 3               # INCREASED from 2 -> 3
+  # Additional augmentations
+  gaussian_noise_std: 0.01         # Add slight gaussian noise
+  time_shift_ms: 50                # Random time shifting
+  pitch_shift_semitones: 2         # Random pitch shifting
+
+# VALIDATION ENHANCEMENT - NEW SECTION
+validation:
+  compute_confusion_matrix: true    # Generate confusion matrices
+  save_predictions: true            # Save validation predictions for analysis
+  threshold_optimization: true      # Optimize classification threshold
+  
+# LEARNING RATE FINDER - NEW SECTION  
+lr_finder:
+  enabled: false                    # Can be enabled for LR range testing
+  start_lr: 1e-8
+  end_lr: 1e-1
+  num_iter: 100
+
+# GRADIENT ACCUMULATION - NEW SECTION
+gradient_accumulation:
+  enabled: true                     # Enable gradient accumulation
+  accumulation_steps: 2             # Accumulate over 2 steps (effective batch size = 96)
+
+# ARCHITECTURE VALIDATION - ENHANCED
+architecture_validation:
+  test_input_shapes: 
+    - [1, 186, 100]                
+    - [4, 186, 250]                
+    - [48, 186, 150]               # Test with actual batch size
+  
+  output_range_check: true         
+  gradient_flow_check: true        # ENABLED for better debugging
+
+# MONITORING - NEW SECTION
+monitoring:
+  watch_metrics: ['f1', 'auc', 'precision', 'recall']  # Metrics to monitor closely
+  plateau_threshold: 0.0001        # Threshold for plateau detection
+  divergence_threshold: 5.0        # Stop if loss diverges beyond this factor
+
+# COMPATIBILITY SETTINGS
+compatibility:
+  torchscript_version: "1.13+"     
+  pytorch_version: "1.13+"         
+  python_version: "3.8+"           
+  
+  warnings:
+    suppress_jit_warnings: false   
+    strict_type_checking: true     
+
+# ADDITIONAL OPTIMIZATION SUGGESTIONS
+optimization_notes: |
+  1. Model size increased from ~2.8M to ~8-10M parameters (suitable for RTX 2060 Super)
+  2. Training patience significantly increased for longer training
+  3. Learning rate and regularization balanced for better convergence
+  4. Mixed precision enabled for faster training
+  5. Enhanced data augmentation for better generalization
+  6. Gradient accumulation for effective larger batch size
