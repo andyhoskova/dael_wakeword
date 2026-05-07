@@ -1,15 +1,12 @@
 """
-Trim audio files using Silero VAD
-- Removes all silent parts from the clips
-- Leaves only speech
-- Removes all clips that has no speech in them
+Removes all silent parts from the clips
+Removes all clips that has no speech in them
+Leaves only speech
 """
 
-import os
 import torch
-import torchaudio
 from pathlib import Path
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 import time
 
 # Set CUDA only (forces error if CUDA not available)
@@ -24,8 +21,8 @@ model.to(device)
 (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
 
 # Paths
-input_dir = Path('data/imports/positive_samples/foreign_voices_prep')
-output_dir = Path('data/imports/positive_samples/foreign_voices_trimmed')
+input_dir = Path('src/data/raw/positive')
+output_dir = Path('src/data/raw/trimmed')
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Create logs directory

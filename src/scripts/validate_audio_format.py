@@ -1,5 +1,5 @@
 """
-Checks WAV files for specific audio format requirements:
+Check WAV files for specific audio format requirements:
 - Sample rate: 16 kHz
 - Bit depth: 16-bit
 - Format: PCM
