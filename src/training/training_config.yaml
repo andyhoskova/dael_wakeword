@@ -1,7 +1,4 @@
-# Wake Word Detection Training Configuration - Improved for Better Performance
-# =========================================================================
-
-# Model Architecture Configuration - ENHANCED FOR 2060 SUPER
+# Model Architecture Configuration
 model:
   input_features: 186                # Number of mel-spectrogram frequency bins
   cnn_hidden: 512                   # INCREASED from 256 -> 512 for more capacity
@@ -75,21 +72,21 @@ data:
 # File Paths Configuration
 paths:
   # Data Paths
-  features_root_dir: 'data/features'                    
-  train_split: 'data/splits/train_split.txt'           
-  val_split: 'data/splits/val_split.txt'               
-  test_split: 'data/splits/test_split.txt'             
+  features_root_dir: 'src/data/features'                    
+  train_split: 'src/data/splits/train_split.txt'           
+  val_split: 'src/data/splits/val_split.txt'               
+  test_split: 'src/data/splits/test_split.txt'             
   
   # Model Output Paths
-  checkpoint_dir: 'models/checkpoints'                 
-  final_models_dir: 'models/final_models'              
-  export_dir: 'models/exported'                        
+  checkpoint_dir: 'src/models/checkpoints'                 
+  final_models_dir: 'src/models/final_models'              
+  export_dir: 'src/models/exported'                        
   
   # Logging Paths
-  log_dir_training: 'logs/training'                    
-  log_dir_models: 'logs/models'                        
-  log_dir_dataset_loader: 'logs/dataset_loader'        
-  models_architecture: 'models/architectures'          
+  log_dir_training: 'src/logs/training'                    
+  log_dir_models: 'src/logs/models'                        
+  log_dir_dataset_loader: 'src/logs/dataset_loader'        
+  models_architecture: 'src/models/architectures'          
 
 # TorchScript Export Configuration
 export:
@@ -104,7 +101,7 @@ export:
     tolerance: 1e-6                 
     test_batch_sizes: [1, 4, 16]   
 
-# Performance Optimization - ENHANCED FOR 2060 SUPER
+# Performance Optimization
 performance:
   memory_efficient: true            
   
@@ -113,7 +110,7 @@ performance:
   
   # Mixed precision training - ENABLED FOR FASTER TRAINING
   mixed_precision:
-    enabled: true                   # ENABLED for faster training on RTX 2060 Super
+    enabled: true                 
     autocast: true
     grad_scaler: true
 

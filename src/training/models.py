@@ -12,11 +12,6 @@ from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional, Union, Any
 import json
-import math
-from collections import OrderedDict
-import warnings
-import yaml
-
 
 class ModelLogger:
     """Enhanced logger with performance monitoring."""
@@ -73,11 +68,7 @@ class ModelLogger:
 
 
 class EnhancedCNNFrontend(nn.Module):
-    """
-    Enhanced CNN Frontend with residual connections and attention mechanisms.
-    Optimized for RTX 2060 Super with 8GB VRAM.
-    """
-    
+   
     def __init__(self, 
                  input_features: int = 186,
                  hidden_dim: int = 512,  # Increased from 256
@@ -205,11 +196,7 @@ class EnhancedCNNFrontend(nn.Module):
 
 
 class EnhancedStreamingTransformer(nn.Module):
-    """
-    Enhanced Streaming Transformer with more layers and better attention.
-    Optimized for longer sequences and better temporal modeling.
-    """
-    
+   
     def __init__(self,
                  input_dim: int = 512,  # Increased from 256
                  num_heads: int = 12,   # Increased from 8
@@ -353,11 +340,7 @@ class EnhancedStreamingTransformer(nn.Module):
 
 
 class EnhancedWakeWordModel(nn.Module):
-    """
-    Enhanced Wake Word Detection Model optimized for RTX 2060 Super.
-    Features improved architecture, better regularization, and enhanced capacity.
-    """
-    
+  
     def __init__(self,
                  input_features: int = 186,
                  cnn_hidden: int = 512,  # Increased
@@ -709,33 +692,6 @@ def save_enhanced_model_architecture(model: EnhancedWakeWordModel,
     arch_path = save_dir / f"{model_name}_architecture.json"
     with open(arch_path, 'w') as f:
         json.dump(arch_info, f, indent=2)
-    
-    # Save training recommendations
-    recommendations = {
-        'training_recommendations': {
-            'min_epochs': 50,
-            'expected_epochs': '80-150',
-            'early_stopping_patience': 35,
-            'learning_rate': 0.0002,
-            'batch_size': 48,
-            'mixed_precision': True,
-            'gradient_accumulation': True
-        },
-        'expected_performance': {
-            'target_f1': '>0.95',
-            'target_auc': '>0.999',
-            'training_time_estimate': '2-4 hours on RTX 2060 Super'
-        },
-        'memory_usage': {
-            'model_size_mb': (model.total_params * 4) / (1024 * 1024),
-            'training_memory_estimate_gb': '4-6 GB',
-            'inference_memory_mb': '200-400 MB'
-        }
-    }
-    
-    rec_path = save_dir / f"{model_name}_training_recommendations.json"
-    with open(rec_path, 'w') as f:
-        json.dump(recommendations, f, indent=2)
 
 
 def load_enhanced_model_from_config(config_path: Union[str, Path], 
@@ -776,41 +732,41 @@ if __name__ == "__main__":
     """
     Example usage of the enhanced wake word model optimized for RTX 2060 Super.
     """
-    # Enhanced configuration for better performance
-    ENHANCED_MODEL_CONFIG = {
-        'input_features': 186,
-        'cnn_hidden': 512,      # Doubled from original
-        'transformer_heads': 12, # Increased from 8
-        'transformer_layers': 6, # Increased from 4
-        'transformer_hidden': 1024, # Doubled from original
-        'dropout_rate': 0.15,   # Reduced from 0.2
-        'classifier_hidden': [256, 128, 64], # Enhanced
-        'use_attention': True,
-        'device': 'auto'
-    }
-    
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Wake Word Model Test')
+    parser.add_argument('--config', type=str, default='training_config.yaml',
+                        help='Path to training configuration YAML file')
+    args = parser.parse_args()
+
+    import yaml
+    with open(args.config, 'r') as f:
+        training_config = yaml.safe_load(f)
+
+    model_config = training_config['model']
+    paths_config = training_config['paths']
+
     try:
         # Create enhanced logger
-        logger = ModelLogger(Path("logs/models"), "enhanced_model_test")
+        logger = ModelLogger(Path(paths_config['log_dir_models']), "enhanced_model_test")
         logger.info("Starting enhanced TorchScript-compatible model testing...")
         logger.info("Optimized for RTX 2060 Super with 8GB VRAM")
-        
-        # Create enhanced model
+
+        # Create enhanced model from YAML config
         model, device = create_enhanced_wake_word_model(
-            input_features=ENHANCED_MODEL_CONFIG['input_features'],
-            cnn_hidden=ENHANCED_MODEL_CONFIG['cnn_hidden'],
-            transformer_heads=ENHANCED_MODEL_CONFIG['transformer_heads'],
-            transformer_layers=ENHANCED_MODEL_CONFIG['transformer_layers'],
-            transformer_hidden=ENHANCED_MODEL_CONFIG['transformer_hidden'],
-            dropout_rate=ENHANCED_MODEL_CONFIG['dropout_rate'],
-            classifier_hidden=ENHANCED_MODEL_CONFIG['classifier_hidden'],
-            use_attention=ENHANCED_MODEL_CONFIG['use_attention'],
-            device=ENHANCED_MODEL_CONFIG['device'],
+            input_features=model_config['input_features'],
+            cnn_hidden=model_config['cnn_hidden'],
+            transformer_heads=model_config['transformer_heads'],
+            transformer_layers=model_config['transformer_layers'],
+            transformer_hidden=model_config['transformer_hidden'],
+            dropout_rate=model_config['dropout_rate'],
+            classifier_hidden=model_config['classifier_hidden'],
+            device=training_config['training'].get('device', 'auto'),
             logger=logger
         )
-        
+
         # Save enhanced model architecture
-        save_enhanced_model_architecture(model, Path("models/enhanced_architecture"))
+        save_enhanced_model_architecture(model, Path(paths_config['models_architecture']))
         
         # Performance testing with training-like scenarios
         test_scenarios = [

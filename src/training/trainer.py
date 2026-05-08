@@ -14,15 +14,12 @@ import numpy as np
 import time
 import json
 import yaml
-from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Optional, Union, Any
+from datetime import datetime
+from typing import Dict, Optional, Union, Any
 import logging
 from logging.handlers import RotatingFileHandler
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix, roc_auc_score
-import warnings
 from tqdm import tqdm
-import os
-import shutil
 
 # Import your custom modules
 from dataset_and_features_loader import create_dataloaders, DatasetLogger
@@ -167,14 +164,7 @@ class EarlyStopping:
     """
     
     def __init__(self, patience: int = 10, min_delta: float = 0.001, restore_best_weights: bool = True):
-        """
-        Initialize early stopping.
-        
-        Args:
-            patience: Number of epochs to wait before stopping
-            min_delta: Minimum change to qualify as improvement
-            restore_best_weights: Whether to restore best weights when stopping
-        """
+      
         self.patience = patience
         self.min_delta = min_delta
         self.restore_best_weights = restore_best_weights
@@ -186,15 +176,7 @@ class EarlyStopping:
     
     def __call__(self, val_score: float, model: nn.Module) -> bool:
         """
-        Check if training should stop early.
-        
-        Args:
-            val_score: Current validation score (higher is better)
-            model: Model to potentially save weights from
-            
-        Returns:
-            True if training should stop
-        """
+        Check if training should stop early."""
         if self.best_score is None:
             self.best_score = val_score
             self.best_weights = model.state_dict().copy() if self.restore_best_weights else None
@@ -221,14 +203,7 @@ class ModelCheckpoint:
     """
     
     def __init__(self, checkpoint_dir: Union[str, Path], keep_best: int = 3, keep_last: int = 2):
-        """
-        Initialize model checkpoint manager.
-        
-        Args:
-            checkpoint_dir: Directory to save checkpoints
-            keep_best: Number of best checkpoints to keep
-            keep_last: Number of latest checkpoints to keep
-        """
+      
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.keep_best = keep_best
@@ -245,18 +220,7 @@ class ModelCheckpoint:
                        val_score: float,
                        metrics: Dict[str, float],
                        is_best: bool = False):
-        """
-        Save model checkpoint with metadata.
-        
-        Args:
-            model: Model to save
-            optimizer: Optimizer state
-            scheduler: Learning rate scheduler state
-            epoch: Current epoch
-            val_score: Validation score for ranking
-            metrics: Additional metrics to save
-            is_best: Whether this is the best model so far
-        """
+    
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         if is_best:
@@ -305,19 +269,11 @@ class ModelCheckpoint:
 
 class WakeWordTrainer:
     """
-    Complete training system for wake word detection models.
-    """
-    
+    Complete training system for wake word detection models."""
     def __init__(self,
                  config_path: Union[str, Path],
                  experiment_name: Optional[str] = None):
-        """
-        Initialize trainer with configuration.
-        
-        Args:
-            config_path: Path to training configuration YAML file
-            experiment_name: Custom experiment name
-        """
+    
         self.config_path = Path(config_path)
         self.experiment_name = experiment_name or f"wake_word_exp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
@@ -876,7 +832,7 @@ class WakeWordTrainer:
                         self.logger.info(f"🎉 New best model! F1: {val_score:.4f}")
                     
                     # Save checkpoint
-                    checkpoint_path = self.checkpoint_manager.save_checkpoint(
+                    self.checkpoint_manager.save_checkpoint(
                         model=self.model,
                         optimizer=self.optimizer,
                         scheduler=self.scheduler,
@@ -923,7 +879,7 @@ class WakeWordTrainer:
             # Final evaluation on test set if available
             if 'test' in self.dataloaders:
                 self.logger.info("Evaluating on test set...")
-                test_metrics = self._validate_epoch(100, 'test')  # Use epoch 100 for test
+                test_metrics = self._validate_epoch(100, 'test')
                 self.logger.log_metrics(test_metrics, 100, 'test')
                 
                 # Log final test results

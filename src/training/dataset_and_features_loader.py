@@ -1,35 +1,24 @@
 """
 Train, Validation and Test Datasets Loader
-==========================================
 """
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
-from torch.nn.utils.rnn import pad_sequence
 from pathlib import Path
-import numpy as np
 import random
 import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional, Union
 import json
-from collections import Counter
-import warnings
 import yaml
 
 
 class DatasetLogger:
     
     def __init__(self, log_dir_dataset_loader: Union[str, Path], name: str = "dataset_loader"):
-        """
-        Initialize dataset logger with file rotation.
-        
-        Args:
-            log_dir_dataset_loader: Directory to store log files
-            name: Logger name
-        """
+       
         self.log_dir_dataset_loader = Path(log_dir_dataset_loader)
         self.log_dir_dataset_loader.mkdir(parents=True, exist_ok=True)
         
@@ -81,27 +70,14 @@ class DatasetLogger:
 
 
 class SpecAugment:
-    """
-    SpecAugment implementation for mel-spectrogram augmentation.
-    Applies frequency and time masking to spectrograms.
-    """
-    
+   
     def __init__(self, 
                  freq_mask_param: int = 20,
                  time_mask_param: int = 15,
                  num_freq_masks: int = 1,
                  num_time_masks: int = 1,
                  mask_value: float = 0.0):
-        """
-        Initialize SpecAugment parameters.
-        
-        Args:
-            freq_mask_param: Maximum frequency mask size
-            time_mask_param: Maximum time mask size
-            num_freq_masks: Number of frequency masks to apply
-            num_time_masks: Number of time masks to apply
-            mask_value: Value to use for masking (0.0 for silence)
-        """
+      
         self.freq_mask_param = freq_mask_param
         self.time_mask_param = time_mask_param
         self.num_freq_masks = num_freq_masks
@@ -149,41 +125,21 @@ class SpecAugment:
 
 
 class VariableLengthCollator:
-    """
-    Custom collate function to handle variable-length sequences.
-    Pads or truncates sequences to a fixed length for batching.
-    """
-    
+   
     def __init__(self, 
                  max_length: Optional[int] = None,
                  padding_value: float = 0.0,
                  truncation_strategy: str = 'pad'):
-        """
-        Initialize the collator.
-        
-        Args:
-            max_length: Maximum sequence length. If None, uses the longest in each batch
-            padding_value: Value to use for padding
-            truncation_strategy: 'pad', 'truncate', or 'pad_truncate'
-        """
+      
         self.max_length = max_length
         self.padding_value = padding_value
         self.truncation_strategy = truncation_strategy
     
     def __call__(self, batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Collate a batch of variable-length sequences.
-        
-        Args:
-            batch: List of (features, label) tuples
-            
-        Returns:
-            Batched and padded features and labels
-        """
+       
         features, labels = zip(*batch)
         
         # Get dimensions
-        freq_dim = features[0].shape[0]
         time_dims = [f.shape[1] for f in features]
         
         # Determine target length
@@ -224,7 +180,7 @@ class VariableLengthCollator:
             batched_features = torch.stack(processed_features, dim=0)
             batched_labels = torch.stack(labels, dim=0)
             return batched_features, batched_labels
-        except RuntimeError as e:
+        except RuntimeError:
             # Fallback: pad to maximum length in batch
             max_len_in_batch = max(f.shape[1] for f in processed_features)
             fallback_features = []
@@ -243,11 +199,7 @@ class VariableLengthCollator:
 
 
 class WakeWordDataset(Dataset):
-    """
-    Production-grade dataset class for wake word detection.
-    Handles loading of pre-extracted features with comprehensive error handling and logging.
-    """
-    
+   
     def __init__(self,
                  split_file: Union[str, Path],
                  features_root_dir: Union[str, Path],
@@ -258,20 +210,7 @@ class WakeWordDataset(Dataset):
                  logger: Optional[DatasetLogger] = None,
                  validate_features: bool = True,
                  expected_feature_shape: Optional[Tuple[int, int]] = None):
-        """
-        Initialize the wake word dataset.
-        
-        Args:
-            split_file: Path to the split file (train_split.txt, val_split.txt, etc.)
-            features_root_dir: Root directory containing feature files
-            split_name: Name of the split (train, validation, test)
-            use_specaugment: Whether to apply SpecAugment
-            spec_aug_prob: Probability of applying augmentation to each sample
-            spec_aug_params: SpecAugment parameters dict
-            logger: Custom logger instance
-            validate_features: Whether to validate feature file integrity
-            expected_feature_shape: Expected shape of feature tensors (freq, time). If None, shapes are not validated.
-        """
+      
         self.split_file = Path(split_file)
         self.features_root_dir = Path(features_root_dir)
         self.split_name = split_name
@@ -312,9 +251,7 @@ class WakeWordDataset(Dataset):
         self._log_dataset_statistics()
     
     def _load_split_file(self):
-        """
-        Load the split file and populate sample list.
-        """
+       
         self.logger.info(f"Loading split file: {self.split_file}")
         self.logger.info(f"Features directory: {self.features_dir}")
         
@@ -382,9 +319,7 @@ class WakeWordDataset(Dataset):
             raise ValueError("No valid samples found in the dataset")
     
     def _validate_dataset(self):
-        """
-        Validate dataset integrity by checking feature files.
-        """
+       
         if not self.validate_features:
             self.logger.info("Feature validation disabled, skipping...")
             return
@@ -459,14 +394,11 @@ class WakeWordDataset(Dataset):
             raise ValueError("No valid samples remaining after validation")
     
     def _detect_feature_dimensions(self):
-        """
-        Detect the actual feature dimensions from a sample of files.
-        """
+       
         if len(self.samples) == 0:
             return None, None
             
         # Sample first few files to detect dimensions
-        sample_sizes = []
         freq_dims = []
         time_dims = []
         
@@ -501,9 +433,7 @@ class WakeWordDataset(Dataset):
         return None, None
     
     def _log_dataset_statistics(self):
-        """
-        Log comprehensive dataset statistics.
-        """
+        
         # Detect actual feature dimensions
         detected_freq, detected_time = self._detect_feature_dimensions()
         
@@ -547,12 +477,7 @@ class WakeWordDataset(Dataset):
         self.logger.info("=" * 60)
     
     def get_statistics(self) -> Dict:
-        """
-        Get dataset statistics as a dictionary.
-        
-        Returns:
-            Dictionary containing dataset statistics
-        """
+       
         return {
             'split_name': self.split_name,
             'total_samples': len(self.samples),
@@ -573,12 +498,7 @@ class WakeWordDataset(Dataset):
         }
     
     def save_statistics(self, output_path: Union[str, Path]):
-        """
-        Save dataset statistics to a JSON file.
-        
-        Args:
-            output_path: Path to save statistics JSON file
-        """
+       
         stats = self.get_statistics()
         stats['created_at'] = datetime.now().isoformat()
         
@@ -588,12 +508,7 @@ class WakeWordDataset(Dataset):
         self.logger.info(f"Dataset statistics saved to: {output_path}")
     
     def get_sample_weights(self) -> List[float]:
-        """
-        Calculate sample weights for weighted sampling to handle class imbalance.
-        
-        Returns:
-            List of weights for each sample, with minority class getting higher weights
-        """
+       
         # Get class counts
         total_samples = len(self.samples)
         class_counts = self.class_counts.copy()
@@ -618,15 +533,7 @@ class WakeWordDataset(Dataset):
         return len(self.samples)
     
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Get a sample from the dataset.
-        
-        Args:
-            idx: Sample index
-        
-        Returns:
-            Tuple of (features, label) where features is a torch.Tensor
-        """
+       
         if idx >= len(self.samples):
             raise IndexError(f"Index {idx} out of range for dataset of size {len(self.samples)}")
         
@@ -681,30 +588,7 @@ def create_dataloaders(
     truncation_strategy: str = 'pad_truncate',
     use_weighted_sampling: bool = True
 ) -> Dict[str, DataLoader]:
-    """
-    Create dataloaders for training, validation, and optionally test sets.
-    
-    Args:
-        features_root_dir: Root directory containing feature files
-        train_split_file: Path to training split file
-        val_split_file: Path to validation split file
-        test_split_file: Path to test split file (optional)
-        batch_size: Batch size for dataloaders
-        num_workers: Number of worker processes
-        use_specaugment: Whether to use SpecAugment on training data
-        spec_aug_prob: Probability of applying augmentation
-        spec_aug_params: SpecAugment parameters
-        logger: Custom logger instance
-        pin_memory: Whether to pin memory in dataloaders
-        persistent_workers: Whether to keep workers persistent
-        max_sequence_length: Maximum sequence length for padding/truncation
-        padding_value: Value to use for padding shorter sequences
-        truncation_strategy: How to handle variable lengths ('pad', 'truncate', 'pad_truncate')
-        use_weighted_sampling: Whether to use weighted sampling for training data to handle class imbalance
-    
-    Returns:
-        Dictionary containing dataloaders
-    """
+   
     if logger is None:
         logger = DatasetLogger(Path(paths['log_dir_dataset_loader']), "dataloader_factory")
     
@@ -757,7 +641,7 @@ def create_dataloaders(
         logger.info(f"  Positive class weight: {pos_weight:.4f}")
         logger.info(f"  Negative class weight: {neg_weight:.4f}")
         logger.info(f"  Weight ratio (pos/neg): {pos_weight/neg_weight:.2f}")
-        logger.info(f"  Sampling with replacement enabled")
+        logger.info("Sampling with replacement enabled")
     
     dataloaders['train'] = DataLoader(
         train_dataset,
@@ -820,18 +704,18 @@ def create_dataloaders(
         if max_sequence_length:
             logger.info(f"    - Fixed sequence length: {max_sequence_length}")
         else:
-            logger.info(f"    - Variable sequence length (batch-wise padding)")
+            logger.info("    - Variable sequence length (batch-wise padding)")
         logger.info(f"    - Truncation strategy: {truncation_strategy}")
         
         # Log weighted sampling info for training
         if split_name == 'train' and use_weighted_sampling:
-            logger.info(f"    - Weighted sampling: ENABLED")
+            logger.info("    - Weighted sampling: ENABLED")
             pos_samples = dataset.class_counts[1]
             neg_samples = dataset.class_counts[0]
             logger.info(f"    - Original distribution: {pos_samples} pos, {neg_samples} neg")
-            logger.info(f"    - Expected balanced sampling per epoch")
+            logger.info("    - Expected balanced sampling per epoch")
         elif split_name == 'train':
-            logger.info(f"    - Weighted sampling: DISABLED")
+            logger.info("    - Weighted sampling: DISABLED")
     
     return dataloaders
 
@@ -841,51 +725,38 @@ if __name__ == "__main__":
     """
     Example usage of the dataset loader.
     """
+    import argparse
 
-     # Load paths from YAML configuration
-    with open('configs/training_config.yaml', 'r') as f:
+    parser = argparse.ArgumentParser(description='Dataset Loader Test')
+    parser.add_argument('--config', type=str, default='training_config.yaml',
+                        help='Path to training configuration YAML file')
+    args = parser.parse_args()
+
+    # Load all configuration from YAML
+    with open(args.config, 'r') as f:
         training_config = yaml.safe_load(f)
-        paths = training_config['paths']
 
-    # Configuration
-    CONFIG = {
-        'features_root_dir': paths['features_root_dir'],
-        'train_split': paths['train_split'],
-        'val_split': paths['val_split'],
-        'test_split': paths['test_split'],
-        'batch_size': 32,
-        'num_workers': 4,
-        'use_specaugment': True,
-        'spec_aug_prob': 0.3,
-        'max_sequence_length': 300,  # Set a reasonable max length
-        'truncation_strategy': 'pad_truncate',
-        'use_weighted_sampling': True,  # Enable weighted sampling for imbalanced dataset
-        'spec_aug_params': {
-            'freq_mask_param': 20,
-            'time_mask_param': 15,
-            'num_freq_masks': 1,
-            'num_time_masks': 1
-        }
-    }
-    
+    paths = training_config['paths']
+    data_config = training_config['data']
+
     try:
         # Create logger
         logger = DatasetLogger(Path(paths['log_dir_dataset_loader']), "dataset_test")
-        
+
         # Create dataloaders
         dataloaders = create_dataloaders(
-            features_root_dir=CONFIG['features_root_dir'],
-            train_split_file=CONFIG['train_split'],
-            val_split_file=CONFIG['val_split'],
-            test_split_file=CONFIG['test_split'],
-            batch_size=CONFIG['batch_size'],
-            num_workers=CONFIG['num_workers'],
-            use_specaugment=CONFIG['use_specaugment'],
-            spec_aug_prob=CONFIG['spec_aug_prob'],
-            spec_aug_params=CONFIG['spec_aug_params'],
-            max_sequence_length=CONFIG['max_sequence_length'],
-            truncation_strategy=CONFIG['truncation_strategy'],
-            use_weighted_sampling=CONFIG['use_weighted_sampling'],
+            features_root_dir=paths['features_root_dir'],
+            train_split_file=paths['train_split'],
+            val_split_file=paths['val_split'],
+            test_split_file=paths['test_split'],
+            batch_size=data_config['batch_size'],
+            num_workers=data_config['num_workers'],
+            use_specaugment=data_config['use_specaugment'],
+            spec_aug_prob=data_config['spec_aug_prob'],
+            spec_aug_params=data_config['spec_aug_params'],
+            max_sequence_length=data_config.get('max_sequence_length'),
+            truncation_strategy=data_config.get('truncation_strategy', 'pad_truncate'),
+            use_weighted_sampling=data_config['use_weighted_sampling'],
             logger=logger
         )
         
@@ -896,7 +767,7 @@ if __name__ == "__main__":
             logger.info(f"Testing {split_name} dataloader...")
             
             # For training, test class distribution with weighted sampling
-            if split_name == 'train' and CONFIG['use_weighted_sampling']:
+            if split_name == 'train' and data_config['use_weighted_sampling']:
                 logger.info("Testing weighted sampling effectiveness...")
                 class_counts = {0: 0, 1: 0}
                 total_samples_tested = 0
