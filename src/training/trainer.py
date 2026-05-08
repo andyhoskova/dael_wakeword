@@ -27,18 +27,9 @@ from models import create_enhanced_wake_word_model, ModelLogger, EnhancedWakeWor
 
 
 class TrainingLogger:
-    """
-    Comprehensive logging system for training with file rotation and TensorBoard integration.
-    """
-    
+  
     def __init__(self, log_dir: Union[str, Path], experiment_name: str = "wake_word_training"):
-        """
-        Initialize training logger with multiple output streams.
-        
-        Args:
-            log_dir: Directory to store log files
-            experiment_name: Name of the training experiment
-        """
+      
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.experiment_name = experiment_name
@@ -159,10 +150,7 @@ class TrainingLogger:
 
 
 class EarlyStopping:
-    """
-    Early stopping mechanism to prevent overfitting.
-    """
-    
+  
     def __init__(self, patience: int = 10, min_delta: float = 0.001, restore_best_weights: bool = True):
       
         self.patience = patience
@@ -198,10 +186,7 @@ class EarlyStopping:
 
 
 class ModelCheckpoint:
-    """
-    Model checkpointing system with automatic cleanup.
-    """
-    
+   
     def __init__(self, checkpoint_dir: Union[str, Path], keep_best: int = 3, keep_last: int = 2):
       
         self.checkpoint_dir = Path(checkpoint_dir)

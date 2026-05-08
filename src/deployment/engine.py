@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Simple Wake Word Inference Engine
 """
@@ -14,7 +13,7 @@ from engine_logic import WakeWordEngine
 PROJECT_ROOT = Path(__file__).parent.parent
 
 # Sound file path
-SOUND_FILE = Path(__file__).parent / "answer.wav"
+SOUND_FILE = Path(__file__).parent / "confirm.wav"
 
 def play_sound():
     """Play a sound file when wake word is detected."""
@@ -41,7 +40,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     engine = WakeWordEngine(
-        model_path=str(PROJECT_ROOT / "models" / "callina.pt"),
+        model_path=str(PROJECT_ROOT / "models" / "dael.pt"),
         confidence_threshold=0.995,
         window_duration=1.5,
         detection_cooldown=2.0,

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Wake Word Detection Engine - FIXED TO MATCH TRAINING PIPELINE
 This version uses the EXACT same feature extraction as your training code.
@@ -178,7 +177,7 @@ class WakeWordEngine:
     ):
         if model_path is None:
             # Default to models/callina.pt relative to project root
-            model_path = str(PROJECT_ROOT / "models" / "callina.pt")
+            model_path = str(PROJECT_ROOT / "models" / "dael.pt")
         self.model_path = model_path
         self.confidence_threshold = confidence_threshold
         self.sample_rate = sample_rate
@@ -511,7 +510,7 @@ class WakeWordEngine:
         
         # Show confidence distribution
         ranges = [(0.0, 0.2), (0.2, 0.4), (0.4, 0.6), (0.6, 0.8), (0.8, 1.0)]
-        print(f"Confidence distribution:")
+        print("Confidence distribution:")
         for low, high in ranges:
             count = sum(1 for c in confidences if low <= c < high)
             pct = count / len(confidences) * 100 if confidences else 0
@@ -548,7 +547,7 @@ def main():
     
     # Create engine with reasonable defaults
     engine = WakeWordEngine(
-        model_path=str(PROJECT_ROOT / "models" / "callina.pt"),
+        model_path=str(PROJECT_ROOT / "models" / "dael.pt"),
         confidence_threshold=0.995,
         window_duration=1.5,
         detection_cooldown=2.0

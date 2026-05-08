@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
 """
-Wake Word Detection Engine Logic - Core Implementation
 Contains all the model loading, feature extraction, and detection logic.
 """
 

@@ -12,3 +12,4 @@ wheels/
 # Folders
 data
 models
+logs
