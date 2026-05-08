@@ -1,12 +1,11 @@
 """
-WAV Files and CSV File Validator
-Checks WAV filenames and filenames in CSV if they match:
+Checks WAV filenames and filenames in CSV if they match
 """
 
 import os
 import pandas as pd
 
-def find_missing_wavs(csv_path, audio_dir, output_csv='data/imports/notFound.csv', filename_column='filename'):
+def find_missing_wavs(csv_path, audio_dir, output_csv='src/data/notFound.csv', filename_column='filename'):
     # Load expected filenames from CSV
     df = pd.read_csv(csv_path)
     
@@ -26,8 +25,7 @@ def find_missing_wavs(csv_path, audio_dir, output_csv='data/imports/notFound.csv
     else:
         print("All files found.")
 
-# Example usage
 if __name__ == "__main__":
-    csv_path = 'data/preprocessed/negative_samples.csv'       # Your CSV file with the filenames
-    audio_dir = 'data/preprocessed/negative_samples'      # Folder containing the .wav files
+    csv_path = 'src/data/processed/positive.csv'       # Your CSV file with the filenames
+    audio_dir = 'src/data/post_augmentation/positive'      # Folder containing the .wav files
     find_missing_wavs(csv_path, audio_dir)

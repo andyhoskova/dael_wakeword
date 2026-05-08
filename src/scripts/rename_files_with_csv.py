@@ -8,11 +8,11 @@ import csv
 import wave
 
 # Set input directory
-input_dir = 'src/data/raw/negative_random_words'
+input_dir = 'src/data/raw/negative_similar'
 
 SOUND_ORIGIN = 'negative'
-SOUND_NAME = 'negative_random_words'
-CSV_NAME = 'negative_random_raw'
+SOUND_NAME = 'negative_similar_words'
+CSV_NAME = 'negative_similar_words_raw'
 INCLUDE_AUGMENTATION_COLUMNS = True  # Set to False to omit augmentation columns: is_augmented', 'augmentation_index', 'augmentation_type'
 
 # List to hold CSV rows

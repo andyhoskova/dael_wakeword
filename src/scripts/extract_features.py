@@ -1,9 +1,7 @@
 import torch
 import torchaudio
 import torchaudio.transforms as T
-import numpy as np
 from pathlib import Path
-import os
 from tqdm import tqdm
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -179,7 +177,7 @@ class WakeWordFeatureExtractor:
                     'GPU_Memory': f"{torch.cuda.memory_allocated()/1e9:.1f}GB"
                 })
         
-        print(f"\nFeature extraction complete!")
+        print("\nFeature extraction complete!")
         print(f"Successful: {successful}")
         print(f"Failed: {failed}")
         print(f"Features saved to: {output_dir}")
@@ -250,7 +248,7 @@ def main():
         batch_size=args.batch_size
     )
     
-    print(f"\n🚀 Feature extraction completed!")
+    print("\n🚀 Feature extraction completed!")
     print(f"✅ Successfully processed: {successful}")
     print(f"❌ Failed: {failed}")
     

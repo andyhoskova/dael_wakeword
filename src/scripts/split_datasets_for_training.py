@@ -1,28 +1,27 @@
 import pandas as pd
 import shutil
 import os
-import random
 
-# === Configuration ===
-csv_path = 'data/preprocessed/positive_samples.csv'  
-audio_folder = 'data/for_augmentation/positive_samples'  
-destination_folder = 'tests/for_time_stretch_positive' 
-target_label = 'personal_voice'
-num_files_to_move = 15
+# Configuration
+csv_path = 'src/data/processed/negative.csv'  
+audio_folder = 'src/data/post_augmentation/negative'  
+destination_folder = 'src/data/processed/validation/negative' 
+target_label = 'negative_random_words'
+num_files_to_move = 100
 
-# === Create destination folder if it doesn't exist ===
+# Create destination folder if it doesn't exist
 os.makedirs(destination_folder, exist_ok=True)
 
-# === Read CSV ===
+# Read CSV
 df = pd.read_csv(csv_path)
 
-# === Filter rows where sound_name == 'random_speech' ===
+# Filter rows where sound_name == 'random_speech'
 matching_rows = df[df['sound_name'] == target_label]
 
-# === Shuffle all filenames that match ===
+# Shuffle all filenames that match
 all_matching_filenames = matching_rows['filename'].sample(frac=1, random_state=42).tolist()
 
-# === Move files until the desired count is reached ===
+# Move files until the desired count is reached
 moved_count = 0
 checked_count = 0
 
