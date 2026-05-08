@@ -1,10 +1,9 @@
-import os
 from pathlib import Path
 
 def generate_split_files():
     # Define paths
-    base_data_path = Path("data/processed")
-    splits_output_path = Path("data/splits")
+    base_data_path = Path("src/data/processed")
+    splits_output_path = Path("src/data/splits")
     
     # Create splits directory if it doesn't exist
     splits_output_path.mkdir(parents=True, exist_ok=True)
@@ -69,8 +68,8 @@ def generate_split_files():
 def generate_split_files_with_labels():
     """Alternative version that includes labels in the split files"""
     # Define paths
-    base_data_path = Path("data/processed")
-    splits_output_path = Path("data/splits")
+    base_data_path = Path("src/data/processed")
+    splits_output_path = Path("src/data/splits")
     
     # Create splits directory if it doesn't exist
     splits_output_path.mkdir(parents=True, exist_ok=True)

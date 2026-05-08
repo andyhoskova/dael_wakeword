@@ -9,6 +9,10 @@ import pickle
 import warnings
 warnings.filterwarnings("ignore")
 
+# Directory Configuration
+DATA_DIR   = Path("src/data/processed")
+OUTPUT_DIR = Path("src/data/features")
+
 class WakeWordFeatureExtractor:
     def __init__(self, 
                  sample_rate=16000,
@@ -103,7 +107,6 @@ class WakeWordFeatureExtractor:
         features['delta_mfcc'] = delta_mfcc.squeeze(0)
         
         # Stack all features along feature dimension
-        # Shape: [total_features, time_frames]
         stacked_features = torch.cat([
             features['log_mel'],      # 80 features
             features['delta_mel'],    # 80 features  
@@ -117,7 +120,7 @@ class WakeWordFeatureExtractor:
             'shape': stacked_features.shape
         }
     
-    def process_file(self, file_path, output_dir):
+    def process_file(self, file_path, output_dir=OUTPUT_DIR):
         """Process a single audio file and save features"""
         # Load audio
         waveform = self.load_audio(file_path)
@@ -130,7 +133,7 @@ class WakeWordFeatureExtractor:
             return False
         
         # Create output path
-        rel_path = Path(file_path).relative_to(Path("data/processed"))
+        rel_path = Path(file_path).relative_to(DATA_DIR)
         output_path = Path(output_dir) / rel_path.with_suffix('.pt')
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
@@ -143,7 +146,7 @@ class WakeWordFeatureExtractor:
         
         return True
     
-    def process_dataset(self, data_dir="data/processed", output_dir="data/features", batch_size=32):
+    def process_dataset(self, data_dir=DATA_DIR, output_dir=OUTPUT_DIR, batch_size=32):
         """Process entire dataset with GPU batching"""
         print(f"Processing dataset from {data_dir} to {output_dir}")
         
@@ -218,8 +221,8 @@ def batch_process_with_multiprocessing(extractor, file_list, output_dir, num_wor
 
 def main():
     parser = argparse.ArgumentParser(description='Extract features for wake word detection')
-    parser.add_argument('--data_dir', default='data/processed', help='Input data directory')
-    parser.add_argument('--output_dir', default='data/features', help='Output features directory')
+    parser.add_argument('--data_dir', default=DATA_DIR, help='Input data directory')
+    parser.add_argument('--output_dir', default=OUTPUT_DIR, help='Output features directory')
     parser.add_argument('--sample_rate', type=int, default=16000, help='Target sample rate')
     parser.add_argument('--n_mels', type=int, default=80, help='Number of mel bins')
     parser.add_argument('--n_mfcc', type=int, default=13, help='Number of MFCC coefficients')
