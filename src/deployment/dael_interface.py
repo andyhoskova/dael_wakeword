@@ -461,7 +461,7 @@ def main() -> int:
 
     engine = DaelONNXEngine(
         model_path           = str(MODEL_PATH),
-        confidence_threshold = 0.999,
+        confidence_threshold = 0.990,
         window_duration      = 1.5,
         detection_cooldown   = 2.0,
         callback             = on_wake_word,
