@@ -252,7 +252,7 @@ class WakeWordEngine:
             test_input = torch.randn(1, 186, 100).to(self.device)
             with torch.no_grad():
                 output = self.model(test_input)
-                self.log(f"✅ Model test successful!")
+                self.log("✅ Model test successful!")
                 self.log(f"   Input: {test_input.shape} -> Output: {output.shape}")
                 self.log(f"   Output range: [{output.min().item():.4f}, {output.max().item():.4f}]")
             
@@ -289,7 +289,7 @@ class WakeWordEngine:
                     stream_callback=self._audio_callback
                 )
             
-            self.log(f"✅ Audio stream initialized")
+            self.log("✅ Audio stream initialized")
             self.log(f"   Sample rate: {self.sample_rate}Hz, Chunk size: {self.chunk_size}")
             return True
             
@@ -521,7 +521,7 @@ class WakeWordEngine:
         
         # Show confidence distribution
         ranges = [(0.0, 0.2), (0.2, 0.4), (0.4, 0.6), (0.6, 0.8), (0.8, 1.0)]
-        print(f"   Confidence distribution:")
+        print("   Confidence distribution:")
         for low, high in ranges:
             count = sum(1 for c in confidences if low <= c < high)
             pct = count / len(confidences) * 100 if confidences else 0
