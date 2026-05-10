@@ -3,11 +3,11 @@ import shutil
 import os
 
 # Configuration
-csv_path = 'src/data/processed/negative.csv'  
-audio_folder = 'src/data/post_augmentation/negative'  
-destination_folder = 'src/data/processed/validation/negative' 
-target_label = 'negative_random_words'
-num_files_to_move = 100
+csv_path = 'src/data/processed/negative.csv' 
+audio_folder = 'src/data/post_augmentation/negative_sounds_silence'  
+destination_folder = 'src/data/processed/test/negative' 
+target_label = 'negative_sounds_silence'
+num_files_to_move = 210
 
 # Create destination folder if it doesn't exist
 os.makedirs(destination_folder, exist_ok=True)

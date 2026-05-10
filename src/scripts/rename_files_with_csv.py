@@ -8,11 +8,11 @@ import csv
 import wave
 
 # Set input directory
-input_dir = 'src/data/raw/negative_similar'
+input_dir = 'src/data/raw/negative_sounds_silence'
 
 SOUND_ORIGIN = 'negative'
-SOUND_NAME = 'negative_similar_words'
-CSV_NAME = 'negative_similar_words_raw'
+SOUND_NAME = 'negative_sounds_silence'
+CSV_NAME = 'negative_sounds_silence_raw'
 INCLUDE_AUGMENTATION_COLUMNS = True  # Set to False to omit augmentation columns: is_augmented', 'augmentation_index', 'augmentation_type'
 
 # List to hold CSV rows
@@ -64,7 +64,7 @@ def get_headers():
 
 
 # Write to CSV
-output_csv = f'src/data/augmented/{CSV_NAME}.csv'
+output_csv = f'src/data/post_augmentation/{CSV_NAME}.csv'
 with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(get_headers())

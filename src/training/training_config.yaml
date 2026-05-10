@@ -123,21 +123,19 @@ debug:
   save_intermediate_models: false   
   verbose_export: true              
 
-# Enhanced Configuration for Better Training
-
-# WARMUP SCHEDULER - NEW SECTION
+# WARMUP SCHEDULER
 warmup:
   enabled: true                     # Enable learning rate warmup
   warmup_epochs: 5                  # Warm up for first 5 epochs
   warmup_factor: 0.1                # Start at 10% of base LR
 
-# ADVANCED REGULARIZATION - NEW SECTION
+# ADVANCED REGULARIZATION
 regularization:
   label_smoothing: 0.1              # Add label smoothing for better generalization
   mixup_alpha: 0.2                  # Add mixup augmentation
   cutmix_alpha: 0.0                 # Disable cutmix (not suitable for spectrograms)
 
-# MODEL CHECKPOINTING - ENHANCED
+# MODEL CHECKPOINTING
 checkpointing:
   save_optimizer_state: true       
   save_scheduler_state: true       
@@ -145,7 +143,7 @@ checkpointing:
   verify_checkpoints: true         
   save_frequency: 5                 # Save checkpoint every 5 epochs
   
-# ADVANCED DATA LOADING - NEW SECTION
+# ADVANCED DATA LOADING
 data_loading:
   pin_memory: true                 
   persistent_workers: true        
@@ -155,25 +153,25 @@ data_loading:
   time_shift_ms: 50                # Random time shifting
   pitch_shift_semitones: 2         # Random pitch shifting
 
-# VALIDATION ENHANCEMENT - NEW SECTION
+# VALIDATION ENHANCEMENT
 validation:
   compute_confusion_matrix: true    # Generate confusion matrices
   save_predictions: true            # Save validation predictions for analysis
   threshold_optimization: true      # Optimize classification threshold
   
-# LEARNING RATE FINDER - NEW SECTION  
+# LEARNING RATE FINDER
 lr_finder:
   enabled: false                    # Can be enabled for LR range testing
   start_lr: 1e-8
   end_lr: 1e-1
   num_iter: 100
 
-# GRADIENT ACCUMULATION - NEW SECTION
+# GRADIENT ACCUMULATION
 gradient_accumulation:
   enabled: true                     # Enable gradient accumulation
   accumulation_steps: 2             # Accumulate over 2 steps (effective batch size = 96)
 
-# ARCHITECTURE VALIDATION - ENHANCED
+# ARCHITECTURE VALIDATION
 architecture_validation:
   test_input_shapes: 
     - [1, 186, 100]                
@@ -183,7 +181,7 @@ architecture_validation:
   output_range_check: true         
   gradient_flow_check: true        # ENABLED for better debugging
 
-# MONITORING - NEW SECTION
+# MONITORING
 monitoring:
   watch_metrics: ['f1', 'auc', 'precision', 'recall']  # Metrics to monitor closely
   plateau_threshold: 0.0001        # Threshold for plateau detection
