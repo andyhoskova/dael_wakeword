@@ -177,7 +177,7 @@ class WakeWordEngine:
     ):
         if model_path is None:
             # Default to models/callina.pt relative to project root
-            model_path = str(PROJECT_ROOT / "models" / "dael.pt")
+            model_path = str(PROJECT_ROOT / "models" / "dael_v1.1.pt")
         self.model_path = model_path
         self.confidence_threshold = confidence_threshold
         self.sample_rate = sample_rate
@@ -547,8 +547,8 @@ def main():
     
     # Create engine with reasonable defaults
     engine = WakeWordEngine(
-        model_path=str(PROJECT_ROOT / "models" / "dael.pt"),
-        confidence_threshold=0.995,
+        model_path=str(PROJECT_ROOT / "models" / "dael_v1.1.pt"),
+        confidence_threshold=0.5,
         window_duration=1.5,
         detection_cooldown=2.0
     )
