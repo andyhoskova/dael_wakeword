@@ -1,6 +1,20 @@
 """
-Enhanced Wake Word Detection Models - Optimized for RTX 2060 Super
-================================================================
+Wake Word Detection Models
+==========================
+
+Key fixes vs previous version:
+  1. EnhancedCNNFrontend no longer does global pooling — it preserves the time
+     dimension and returns (batch, hidden_dim, T') so the transformer actually
+     has a temporal sequence to attend over.
+  2. EnhancedStreamingTransformer now receives (batch, hidden_dim, T'), permutes
+     to (T', batch, hidden_dim), runs attention across time steps (not across
+     batch items), then mean-pools back to (batch, hidden_dim).
+  3. ModuleList replaces the hand-numbered attention_1 … attention_6 attributes
+     and the getattr() call in _apply_transformer_layer, which blocked
+     torch.jit.script and made adding/removing layers fragile.
+  4. Sigmoid is removed from EnhancedWakeWordModel.forward so that the trainer
+     can use BCEWithLogitsLoss (numerically more stable and the only correct
+     way to use pos_weight). Apply torch.sigmoid() manually at inference time.
 """
 
 import torch
@@ -13,116 +27,107 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Optional, Union, Any
 import json
 
+
 class ModelLogger:
-    """Enhanced logger with performance monitoring."""
-    
-    def __init__(self, log_dir: Union[str, Path], name: str = "enhanced_model_builder"):
+
+    def __init__(self, log_dir: Union[str, Path], name: str = "model_builder"):
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.INFO)
-        
-        # Clear existing handlers
+
         for handler in self.logger.handlers[:]:
             self.logger.removeHandler(handler)
-        
-        # Enhanced console handler
+
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
-        
-        # Enhanced file handler
+
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         log_file = self.log_dir / f"{name}_{timestamp}.log"
         file_handler = RotatingFileHandler(
-            log_file, 
-            maxBytes=20*1024*1024,  # 20MB (increased)
+            log_file,
+            maxBytes=20 * 1024 * 1024,
             backupCount=10
         )
         file_handler.setLevel(logging.DEBUG)
-        
-        # Enhanced formatter
+
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s'
         )
         console_handler.setFormatter(formatter)
         file_handler.setFormatter(formatter)
-        
+
         self.logger.addHandler(console_handler)
         self.logger.addHandler(file_handler)
-    
+
     def info(self, message: str):
         self.logger.info(message)
-    
+
     def warning(self, message: str):
         self.logger.warning(message)
-    
+
     def error(self, message: str):
         self.logger.error(message)
-    
+
     def debug(self, message: str):
         self.logger.debug(message)
-    
+
     def exception(self, message: str):
         self.logger.exception(message)
 
 
 class EnhancedCNNFrontend(nn.Module):
-   
-    def __init__(self, 
+
+    def __init__(self,
                  input_features: int = 186,
-                 hidden_dim: int = 512,  # Increased from 256
-                 dropout_rate: float = 0.15,  # Reduced from 0.2
+                 hidden_dim: int = 512,
+                 dropout_rate: float = 0.15,
                  use_attention: bool = True,
                  logger: Optional[ModelLogger] = None):
         super(EnhancedCNNFrontend, self).__init__()
-        
+
         self.input_features = input_features
         self.hidden_dim = hidden_dim
         self.dropout_rate = dropout_rate
         self.use_attention = use_attention
-        
-        # Enhanced convolutional layers with residual connections
-        
-        # First conv block: input_features -> 128 channels
-        self.conv1 = nn.Conv1d(input_features, 128, kernel_size=5, padding=2)  # Larger kernel
+
+        # First conv block: input_features → 128 channels, T → T/2
+        self.conv1 = nn.Conv1d(input_features, 128, kernel_size=5, padding=2)
         self.bn1 = nn.BatchNorm1d(128)
         self.pool1 = nn.MaxPool1d(kernel_size=2, stride=2)
         self.dropout1 = nn.Dropout(dropout_rate)
-        
-        # Second conv block: 128 -> 256 channels with residual
+
+        # Second conv block: 128 → 256, T/2 → T/4 (with residual)
         self.conv2a = nn.Conv1d(128, 256, kernel_size=3, padding=1)
         self.conv2b = nn.Conv1d(256, 256, kernel_size=3, padding=1)
         self.bn2a = nn.BatchNorm1d(256)
         self.bn2b = nn.BatchNorm1d(256)
         self.pool2 = nn.MaxPool1d(kernel_size=2, stride=2)
         self.dropout2 = nn.Dropout(dropout_rate)
-        
-        # Residual connection for conv2
         self.residual2 = nn.Conv1d(128, 256, kernel_size=1)
-        
-        # Third conv block: 256 -> 384 channels with residual
+
+        # Third conv block: 256 → 384, T/4 → T/8 (with residual)
         self.conv3a = nn.Conv1d(256, 384, kernel_size=3, padding=1)
         self.conv3b = nn.Conv1d(384, 384, kernel_size=3, padding=1)
         self.bn3a = nn.BatchNorm1d(384)
         self.bn3b = nn.BatchNorm1d(384)
         self.pool3 = nn.MaxPool1d(kernel_size=2, stride=2)
         self.dropout3 = nn.Dropout(dropout_rate)
-        
-        # Residual connection for conv3
         self.residual3 = nn.Conv1d(256, 384, kernel_size=1)
-        
-        # Fourth conv block: 384 -> hidden_dim channels with residual
+
+        # Fourth conv block: 384 → hidden_dim, T/8 stays (with residual)
         self.conv4a = nn.Conv1d(384, hidden_dim, kernel_size=3, padding=1)
         self.conv4b = nn.Conv1d(hidden_dim, hidden_dim, kernel_size=3, padding=1)
         self.bn4a = nn.BatchNorm1d(hidden_dim)
         self.bn4b = nn.BatchNorm1d(hidden_dim)
         self.dropout4 = nn.Dropout(dropout_rate)
-        
-        # Residual connection for conv4
         self.residual4 = nn.Conv1d(384, hidden_dim, kernel_size=1)
-        
-        # Channel attention mechanism
+
+        # Channel attention: re-weights each of the hidden_dim channels globally
+        # AdaptiveAvgPool1d(1) collapses time → (B, hidden_dim, 1), which is
+        # broadcast back across time after the sigmoid gate.  This is channel-
+        # wise attention and intentionally preserves the time dimension.
         if use_attention:
             self.channel_attention = nn.Sequential(
                 nn.AdaptiveAvgPool1d(1),
@@ -131,147 +136,119 @@ class EnhancedCNNFrontend(nn.Module):
                 nn.Conv1d(hidden_dim // 16, hidden_dim, 1),
                 nn.Sigmoid()
             )
-        
+
         if logger:
-            logger.info(f"Enhanced CNN Frontend initialized: {input_features} -> {hidden_dim}")
-            logger.info(f"  Dropout rate: {dropout_rate}, Attention: {use_attention}")
-    
+            logger.info(f"CNN Frontend: {input_features} freq bins → {hidden_dim} channels, T → T/8")
+            logger.info(f"  Dropout: {dropout_rate}, Channel attention: {use_attention}")
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # First conv block
+        # x: (B, input_features, T)
+
+        # Block 1
         x = self.conv1(x)
         x = self.bn1(x)
         x = F.relu(x, inplace=False)
         x = self.pool1(x)
         x = self.dropout1(x)
-        
-        # Second conv block with residual
+        # → (B, 128, T/2)
+
+        # Block 2 + residual
         residual = self.residual2(x)
         x = self.conv2a(x)
         x = self.bn2a(x)
         x = F.relu(x, inplace=False)
         x = self.conv2b(x)
         x = self.bn2b(x)
-        x = x + residual  # Residual connection
+        x = x + residual
         x = F.relu(x, inplace=False)
         x = self.pool2(x)
         x = self.dropout2(x)
-        
-        # Third conv block with residual
+        # → (B, 256, T/4)
+
+        # Block 3 + residual
         residual = self.residual3(x)
         x = self.conv3a(x)
         x = self.bn3a(x)
         x = F.relu(x, inplace=False)
         x = self.conv3b(x)
         x = self.bn3b(x)
-        x = x + residual  # Residual connection
+        x = x + residual
         x = F.relu(x, inplace=False)
         x = self.pool3(x)
         x = self.dropout3(x)
-        
-        # Fourth conv block with residual
+        # → (B, 384, T/8)
+
+        # Block 4 + residual
         residual = self.residual4(x)
         x = self.conv4a(x)
         x = self.bn4a(x)
         x = F.relu(x, inplace=False)
         x = self.conv4b(x)
         x = self.bn4b(x)
-        x = x + residual  # Residual connection
+        x = x + residual
         x = F.relu(x, inplace=False)
         x = self.dropout4(x)
-        
-        # Channel attention
+        # → (B, hidden_dim, T/8)
+
+        # Channel attention (keeps time dim intact)
         if self.use_attention:
-            attention_weights = self.channel_attention(x)
-            x = x * attention_weights
-        
-        # Global average and max pooling combined
-        avg_pool = torch.mean(x, dim=2)
-        max_pool, _ = torch.max(x, dim=2)
-        x = avg_pool + max_pool  # Combine both pooling methods
-        
-        return x
-    
+            attention_weights = self.channel_attention(x)  # (B, hidden_dim, 1)
+            x = x * attention_weights                       # (B, hidden_dim, T/8)
+
+        # FIX: do NOT pool over time here.  Return the full temporal feature map
+        # so the transformer has an actual sequence to attend over.
+        return x  # (B, hidden_dim, T/8)
+
     def get_output_dim(self) -> int:
         return self.hidden_dim
 
 
 class EnhancedStreamingTransformer(nn.Module):
-   
+
     def __init__(self,
-                 input_dim: int = 512,  # Increased from 256
-                 num_heads: int = 12,   # Increased from 8
-                 num_layers: int = 6,   # Increased from 4
-                 hidden_dim: int = 1024,  # Increased from 512
+                 input_dim: int = 512,
+                 num_heads: int = 16,
+                 num_layers: int = 6,
+                 hidden_dim: int = 1024,
                  dropout_rate: float = 0.1,
-                 use_rotary_embeddings: bool = True,
                  logger: Optional[ModelLogger] = None):
         super(EnhancedStreamingTransformer, self).__init__()
-        
+
         self.input_dim = input_dim
         self.num_heads = num_heads
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.dropout_rate = dropout_rate
-        self.use_rotary_embeddings = use_rotary_embeddings
-        
-        # Validate attention head compatibility
+
         if input_dim % num_heads != 0:
-            raise ValueError(f"input_dim ({input_dim}) must be divisible by num_heads ({num_heads})")
-        
-        # Define layers explicitly for TorchScript compatibility (6 layers)
-        if num_layers == 6:
-            # Layer 1
-            self.attention_1 = nn.MultiheadAttention(
-                embed_dim=input_dim, num_heads=num_heads, dropout=dropout_rate
+            raise ValueError(
+                f"input_dim ({input_dim}) must be divisible by num_heads ({num_heads})"
             )
-            self.norm1_1 = nn.LayerNorm(input_dim)
-            self.norm2_1 = nn.LayerNorm(input_dim)
-            self.ff_1 = self._create_feedforward(input_dim, hidden_dim, dropout_rate)
-            
-            # Layer 2
-            self.attention_2 = nn.MultiheadAttention(
-                embed_dim=input_dim, num_heads=num_heads, dropout=dropout_rate
+
+        # FIX: use ModuleList instead of hand-numbered attributes + getattr().
+        # ModuleList is TorchScript-compatible when iterated in forward().
+        self.attention_layers = nn.ModuleList([
+            nn.MultiheadAttention(
+                embed_dim=input_dim,
+                num_heads=num_heads,
+                dropout=dropout_rate,
+                batch_first=False  # expects (T, B, D)
             )
-            self.norm1_2 = nn.LayerNorm(input_dim)
-            self.norm2_2 = nn.LayerNorm(input_dim)
-            self.ff_2 = self._create_feedforward(input_dim, hidden_dim, dropout_rate)
-            
-            # Layer 3
-            self.attention_3 = nn.MultiheadAttention(
-                embed_dim=input_dim, num_heads=num_heads, dropout=dropout_rate
-            )
-            self.norm1_3 = nn.LayerNorm(input_dim)
-            self.norm2_3 = nn.LayerNorm(input_dim)
-            self.ff_3 = self._create_feedforward(input_dim, hidden_dim, dropout_rate)
-            
-            # Layer 4
-            self.attention_4 = nn.MultiheadAttention(
-                embed_dim=input_dim, num_heads=num_heads, dropout=dropout_rate
-            )
-            self.norm1_4 = nn.LayerNorm(input_dim)
-            self.norm2_4 = nn.LayerNorm(input_dim)
-            self.ff_4 = self._create_feedforward(input_dim, hidden_dim, dropout_rate)
-            
-            # Layer 5
-            self.attention_5 = nn.MultiheadAttention(
-                embed_dim=input_dim, num_heads=num_heads, dropout=dropout_rate
-            )
-            self.norm1_5 = nn.LayerNorm(input_dim)
-            self.norm2_5 = nn.LayerNorm(input_dim)
-            self.ff_5 = self._create_feedforward(input_dim, hidden_dim, dropout_rate)
-            
-            # Layer 6
-            self.attention_6 = nn.MultiheadAttention(
-                embed_dim=input_dim, num_heads=num_heads, dropout=dropout_rate
-            )
-            self.norm1_6 = nn.LayerNorm(input_dim)
-            self.norm2_6 = nn.LayerNorm(input_dim)
-            self.ff_6 = self._create_feedforward(input_dim, hidden_dim, dropout_rate)
-            
-        else:
-            raise ValueError(f"Currently supports 6 transformer layers, got {num_layers}")
-        
-        # Enhanced output projection with residual
+            for _ in range(num_layers)
+        ])
+
+        self.norm1_layers = nn.ModuleList([
+            nn.LayerNorm(input_dim) for _ in range(num_layers)
+        ])
+        self.norm2_layers = nn.ModuleList([
+            nn.LayerNorm(input_dim) for _ in range(num_layers)
+        ])
+        self.ff_layers = nn.ModuleList([
+            self._make_feedforward(input_dim, hidden_dim, dropout_rate)
+            for _ in range(num_layers)
+        ])
+
+        # Final projection with residual
         self.output_proj = nn.Sequential(
             nn.Linear(input_dim, input_dim),
             nn.ReLU(inplace=False),
@@ -279,80 +256,78 @@ class EnhancedStreamingTransformer(nn.Module):
             nn.Linear(input_dim, input_dim)
         )
         self.final_norm = nn.LayerNorm(input_dim)
-        
+
         if logger:
-            logger.info(f"Enhanced Streaming Transformer: {input_dim}D, {num_heads} heads, {num_layers} layers")
-            logger.info(f"  Hidden dim: {hidden_dim}, Dropout: {dropout_rate}")
-    
-    def _create_feedforward(self, input_dim: int, hidden_dim: int, dropout_rate: float) -> nn.Module:
-        """Create enhanced feedforward network with GELU activation."""
+            logger.info(
+                f"Transformer: {input_dim}D input, {num_heads} heads, "
+                f"{num_layers} layers, {hidden_dim}D FFN"
+            )
+
+    @staticmethod
+    def _make_feedforward(input_dim: int, hidden_dim: int, dropout_rate: float) -> nn.Module:
         return nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.GELU(),  # Better than ReLU for transformers
+            nn.GELU(),
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_dim, input_dim),
             nn.Dropout(dropout_rate)
         )
-    
-    def _apply_transformer_layer(self, x: torch.Tensor, layer_idx: int) -> torch.Tensor:
-        """Apply a single transformer layer."""
-        # Get layer components
-        attention = getattr(self, f'attention_{layer_idx}')
-        norm1 = getattr(self, f'norm1_{layer_idx}')
-        norm2 = getattr(self, f'norm2_{layer_idx}')
-        ff = getattr(self, f'ff_{layer_idx}')
-        
-        # Pre-norm attention
-        residual = x
-        x = norm1(x)
-        attn_output, _ = attention(x, x, x)
-        x = residual + attn_output
-        
-        # Pre-norm feedforward
-        residual = x
-        x = norm2(x)
-        ff_output = ff(x)
-        x = residual + ff_output
-        
-        return x
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Reshape for transformer
-        x = x.unsqueeze(0)  # Add sequence dimension
-        
-        # Apply all transformer layers
-        for layer_idx in range(1, self.num_layers + 1):
-            x = self._apply_transformer_layer(x, layer_idx)
-        
-        # Final processing
+        # FIX: x arrives as (B, D, T') from the CNN (temporal features intact).
+        # Permute to (T', B, D) which is what nn.MultiheadAttention expects when
+        # batch_first=False.  This means attention is computed ACROSS TIME STEPS
+        # within each sample, not across samples within a batch.
+        x = x.permute(2, 0, 1)  # (T', B, D)
+
+        # Apply transformer layers (ModuleList iteration is TorchScript-safe)
+        for attn, norm1, norm2, ff in zip(
+            self.attention_layers,
+            self.norm1_layers,
+            self.norm2_layers,
+            self.ff_layers
+        ):
+            # Pre-norm self-attention
+            residual = x
+            x_norm = norm1(x)
+            attn_out, _ = attn(x_norm, x_norm, x_norm)
+            x = residual + attn_out
+
+            # Pre-norm feed-forward
+            residual = x
+            x_norm = norm2(x)
+            x = residual + ff(x_norm)
+
+        # Final norm + projection
         x = self.final_norm(x)
         residual = x
         x = self.output_proj(x)
-        x = x + residual  # Final residual connection
-        
-        # Remove sequence dimension
-        x = x.squeeze(0)
-        
-        return x
-    
+        x = x + residual
+
+        # FIX: mean-pool over the time dimension to get one vector per sample.
+        # x is (T', B, D) → mean over dim 0 → (B, D)
+        x = x.mean(dim=0)
+
+        return x  # (B, D)
+
     def get_output_dim(self) -> int:
         return self.input_dim
 
 
 class EnhancedWakeWordModel(nn.Module):
-  
+
     def __init__(self,
                  input_features: int = 186,
-                 cnn_hidden: int = 512,  # Increased
-                 transformer_heads: int = 12,  # Increased
-                 transformer_layers: int = 6,  # Increased
-                 transformer_hidden: int = 1024,  # Increased
-                 dropout_rate: float = 0.15,  # Reduced
-                 classifier_hidden: List[int] = [256, 128, 64],  # Enhanced
+                 cnn_hidden: int = 512,
+                 transformer_heads: int = 16,
+                 transformer_layers: int = 6,
+                 transformer_hidden: int = 1024,
+                 dropout_rate: float = 0.15,
+                 classifier_hidden: List[int] = [256, 128, 64],
                  use_attention: bool = True,
                  logger: Optional[ModelLogger] = None):
         super(EnhancedWakeWordModel, self).__init__()
-        
+
         self.input_features = input_features
         self.cnn_hidden = cnn_hidden
         self.transformer_heads = transformer_heads
@@ -361,8 +336,7 @@ class EnhancedWakeWordModel(nn.Module):
         self.dropout_rate = dropout_rate
         self.classifier_hidden = classifier_hidden
         self.use_attention = use_attention
-        
-        # Enhanced components
+
         self.cnn_frontend = EnhancedCNNFrontend(
             input_features=input_features,
             hidden_dim=cnn_hidden,
@@ -370,93 +344,86 @@ class EnhancedWakeWordModel(nn.Module):
             use_attention=use_attention,
             logger=logger
         )
-        
+
         self.transformer_backend = EnhancedStreamingTransformer(
             input_dim=cnn_hidden,
             num_heads=transformer_heads,
             num_layers=transformer_layers,
             hidden_dim=transformer_hidden,
+            # Transformer uses lower dropout than CNN — standard practice
             dropout_rate=dropout_rate * 0.5,
             logger=logger
         )
-        
-        # Enhanced classifier with explicit definition for [256, 128, 64]
+
+        # Build classifier with progressive dropout increase
         if len(classifier_hidden) == 3 and classifier_hidden == [256, 128, 64]:
             self.classifier = nn.Sequential(
-                # First layer: cnn_hidden -> 256
                 nn.Linear(cnn_hidden, 256),
                 nn.GELU(),
                 nn.Dropout(dropout_rate),
-                nn.BatchNorm1d(256),  # Add batch norm
-                
-                # Second layer: 256 -> 128
+                nn.BatchNorm1d(256),
+
                 nn.Linear(256, 128),
                 nn.GELU(),
                 nn.Dropout(dropout_rate + 0.05),
                 nn.BatchNorm1d(128),
-                
-                # Third layer: 128 -> 64
+
                 nn.Linear(128, 64),
                 nn.GELU(),
                 nn.Dropout(dropout_rate + 0.1),
                 nn.BatchNorm1d(64),
-                
-                # Output layer: 64 -> 1
+
                 nn.Linear(64, 1)
             )
         else:
-            # Fallback for different architectures
             layers = []
             prev_dim = cnn_hidden
-            
-            for i, hidden_dim in enumerate(classifier_hidden):
+            for i, h in enumerate(classifier_hidden):
                 layers.extend([
-                    nn.Linear(prev_dim, hidden_dim),
+                    nn.Linear(prev_dim, h),
                     nn.GELU(),
                     nn.Dropout(dropout_rate + i * 0.05),
-                    nn.BatchNorm1d(hidden_dim)
+                    nn.BatchNorm1d(h)
                 ])
-                prev_dim = hidden_dim
-            
+                prev_dim = h
             layers.append(nn.Linear(prev_dim, 1))
             self.classifier = nn.Sequential(*layers)
-        
-        # Calculate parameters
+
         self.total_params = sum(p.numel() for p in self.parameters())
         self.trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        
+
         if logger:
             logger.info("=" * 70)
-            logger.info("ENHANCED WAKE WORD DETECTION MODEL INITIALIZED")
+            logger.info("WAKE WORD DETECTION MODEL INITIALIZED")
             logger.info("=" * 70)
-            logger.info(f"Total parameters: {self.total_params:,}")
+            logger.info(f"Total parameters:     {self.total_params:,}")
             logger.info(f"Trainable parameters: {self.trainable_params:,}")
             model_size_mb = (self.total_params * 4) / (1024 * 1024)
             logger.info(f"Estimated model size: {model_size_mb:.2f} MB")
-            logger.info(f"Memory requirement (training): ~{model_size_mb * 4:.1f} MB")
             logger.info("=" * 70)
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # CNN Frontend: enhanced feature extraction
+        # x: (B, input_features, T)
+
+        # CNN: (B, input_features, T) → (B, cnn_hidden, T/8)
         cnn_features = self.cnn_frontend(x)
-        
-        # Transformer Backend: enhanced temporal modeling
+
+        # Transformer: (B, cnn_hidden, T/8) → (B, cnn_hidden)
         transformer_features = self.transformer_backend(cnn_features)
-        
-        # Classifier: enhanced final prediction
+
+        # Classifier: (B, cnn_hidden) → (B, 1) → (B,)
         logits = self.classifier(transformer_features)
-        
-        # Apply sigmoid activation and reshape
-        output = torch.sigmoid(logits)
-        output = output.view(-1)
-        
-        return output
-    
+
+        # FIX: return raw logits (no sigmoid).
+        # The trainer uses BCEWithLogitsLoss which applies sigmoid internally
+        # and is numerically stable.  At inference time, apply torch.sigmoid()
+        # to get probabilities.
+        return logits.view(-1)
+
     def get_model_config(self) -> Dict[str, Any]:
-        """Get enhanced model configuration."""
         return {
-            'model_version': '3.0.0',  # Updated version
-            'model_type': 'Enhanced TorchScript-Compatible CNN-Transformer Wake Word Detector',
+            'model_version': '4.0.0',
+            'model_type': 'CNN-Transformer Wake Word Detector (temporal attention fixed)',
             'input_features': self.input_features,
             'cnn_hidden': self.cnn_hidden,
             'transformer_heads': self.transformer_heads,
@@ -468,61 +435,51 @@ class EnhancedWakeWordModel(nn.Module):
             'total_parameters': self.total_params,
             'trainable_parameters': self.trainable_params,
             'torchscript_compatible': True,
-            'optimized_for': 'RTX 2060 Super',
+            'output': 'raw_logits_apply_sigmoid_for_inference',
             'created_at': datetime.now().isoformat()
         }
-    
+
     def save_config(self, filepath: Union[str, Path]):
-        """Save enhanced model configuration."""
-        config = self.get_model_config()
         with open(filepath, 'w') as f:
-            json.dump(config, f, indent=2)
+            json.dump(self.get_model_config(), f, indent=2)
 
 
 def create_enhanced_wake_word_model(
     input_features: int = 186,
-    cnn_hidden: int = 512,  # Increased default
-    transformer_heads: int = 12,  # Increased default
-    transformer_layers: int = 6,  # Increased default
-    transformer_hidden: int = 1024,  # Increased default
-    dropout_rate: float = 0.15,  # Reduced default
+    cnn_hidden: int = 512,
+    transformer_heads: int = 16,
+    transformer_layers: int = 6,
+    transformer_hidden: int = 1024,
+    dropout_rate: float = 0.15,
     classifier_hidden: Optional[List[int]] = None,
     use_attention: bool = True,
     device: str = 'auto',
     logger: Optional[ModelLogger] = None
-) -> Tuple[EnhancedWakeWordModel, str]:
-    """
-    Factory function for enhanced wake word model optimized for RTX 2060 Super.
-    
-    Returns a model with ~8-12M parameters, optimized for better performance.
-    """
+) -> Tuple["EnhancedWakeWordModel", str]:
+
     if classifier_hidden is None:
-        classifier_hidden = [256, 128, 64]  # Enhanced default
-    
-    # Determine device with GPU memory check
+        classifier_hidden = [256, 128, 64]
+
     if device == 'auto':
         if torch.cuda.is_available():
             device_used = 'cuda'
             if logger:
                 gpu_name = torch.cuda.get_device_name()
-                gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-                logger.info(f"CUDA available: {gpu_name}")
-                logger.info(f"GPU Memory: {gpu_memory:.1f} GB")
-                
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+                logger.info(f"CUDA available: {gpu_name} ({gpu_memory:.1f} GB)")
                 if gpu_memory < 6.0:
-                    logger.warning("GPU has less than 6GB memory. Consider reducing model size.")
+                    logger.warning("GPU has less than 6 GB — consider reducing model size.")
         else:
             device_used = 'cpu'
             if logger:
                 logger.info("CUDA not available, using CPU")
     else:
         device_used = device
-    
+
     if logger:
-        logger.info(f"Creating enhanced TorchScript-compatible model on: {device_used}")
-    
+        logger.info(f"Creating model on: {device_used}")
+
     try:
-        # Create enhanced model
         model = EnhancedWakeWordModel(
             input_features=input_features,
             cnn_hidden=cnn_hidden,
@@ -534,174 +491,116 @@ def create_enhanced_wake_word_model(
             use_attention=use_attention,
             logger=logger
         )
-        
-        # Move to device
+
         model = model.to(device_used)
-        
-        # Enhanced validation with more test cases
+
         if logger:
-            logger.info("Performing comprehensive enhanced model validation...")
-        
+            logger.info("Validating model with test inputs...")
+
         test_cases = [
-            (1, input_features, 100),   # Single sample
-            (2, input_features, 250),   # Small batch, long sequence
-            (8, input_features, 150),   # Medium batch, medium sequence
-            (16, input_features, 100),  # Large batch, standard sequence
-            (48, input_features, 75),   # Training batch size, short sequence
+            (1, input_features, 100),
+            (2, input_features, 250),
+            (8, input_features, 150),
+            (16, input_features, 100),
+            (48, input_features, 75),
         ]
-        
+
         model.eval()
-        total_memory_used = 0
-        
         with torch.no_grad():
             for batch_size, freq_bins, time_frames in test_cases:
                 test_input = torch.randn(batch_size, freq_bins, time_frames).to(device_used)
-                
-                # Memory usage tracking
-                if device_used == 'cuda':
-                    torch.cuda.empty_cache()
-                    memory_before = torch.cuda.memory_allocated()
-                
                 output = model(test_input)
-                
-                if device_used == 'cuda':
-                    memory_after = torch.cuda.memory_allocated()
-                    memory_used = (memory_after - memory_before) / (1024**2)  # MB
-                    total_memory_used = max(total_memory_used, memory_used)
-                
-                # Validate output
+
                 expected_shape = (batch_size,)
                 if output.shape != expected_shape:
-                    raise ValueError(f"Output shape mismatch: expected {expected_shape}, got {output.shape}")
-                
-                if not (0 <= output.min().item() and output.max().item() <= 1):
-                    raise ValueError(f"Output values out of range: min={output.min().item()}, max={output.max().item()}")
-                
+                    raise ValueError(
+                        f"Output shape mismatch: expected {expected_shape}, got {output.shape}"
+                    )
+
                 if logger:
-                    logger.debug(f"✓ Test case {test_input.shape} -> {output.shape} passed")
-        
-        if logger and device_used == 'cuda':
-            logger.info(f"Peak GPU memory usage during validation: {total_memory_used:.1f} MB")
-        
-        # Enhanced TorchScript compatibility testing
+                    logger.debug(f"  ✓ {test_input.shape} → {output.shape}")
+
+        # TorchScript tracing test
         if logger:
-            logger.info("Testing enhanced TorchScript compatibility...")
-        
-        test_input = torch.randn(1, input_features, 100).to(device_used)
-        
-        # Test tracing with enhanced validation
+            logger.info("Testing TorchScript tracing...")
+
+        trace_input = torch.randn(1, input_features, 100).to(device_used)
         try:
-            traced_model = torch.jit.trace(model, test_input)
-            
-            # More rigorous output comparison
+            traced = torch.jit.trace(model, trace_input)
             with torch.no_grad():
-                original_output = model(test_input)
-                traced_output = traced_model(test_input)
-                
-                max_diff = torch.max(torch.abs(original_output - traced_output)).item()
-                relative_error = max_diff / torch.max(torch.abs(original_output)).item()
-                
-                if torch.allclose(original_output, traced_output, atol=1e-6, rtol=1e-5):
+                orig = model(trace_input)
+                trac = traced(trace_input)
+                if torch.allclose(orig, trac, atol=1e-6, rtol=1e-5):
                     if logger:
-                        logger.info(f"✓ TorchScript tracing successful (max diff: {max_diff:.2e})")
+                        logger.info("  ✓ TorchScript tracing successful")
                 else:
                     if logger:
-                        logger.warning(f"TorchScript tracing produces different outputs (relative error: {relative_error:.2e})")
-            
-        except Exception as trace_error:
+                        logger.warning("  TorchScript trace outputs diverged (check model)")
+        except Exception as e:
             if logger:
-                logger.warning(f"TorchScript tracing failed: {str(trace_error)}")
-            
-            # Fallback to scripting
-            try:
-                scripted_model = torch.jit.script(model)
-                
-                with torch.no_grad():
-                    original_output = model(test_input)
-                    scripted_output = scripted_model(test_input)
-                    
-                    if torch.allclose(original_output, scripted_output, atol=1e-6, rtol=1e-5):
-                        if logger:
-                            logger.info("✓ TorchScript scripting successful")
-                    else:
-                        if logger:
-                            logger.warning("TorchScript scripting produces different outputs")
-                        
-            except Exception as script_error:
-                if logger:
-                    logger.error("Both TorchScript methods failed!")
-                    logger.error(f"Tracing error: {str(trace_error)}")
-                    logger.error(f"Scripting error: {str(script_error)}")
-                    logger.warning("Model will work for training but may not export to TorchScript")
-        
-        model.train()  # Return to training mode
-        
+                logger.warning(f"  TorchScript tracing failed: {e}")
+
+        model.train()
+
         if logger:
-            logger.info("✓ Enhanced model validation completed successfully!")
-            logger.info("Model is ready for extended training and deployment!")
-        
+            logger.info("Model creation and validation complete.")
+
         return model, device_used
-        
+
     except Exception as e:
         if logger:
-            logger.exception(f"Enhanced model creation failed: {str(e)}")
+            logger.exception(f"Model creation failed: {str(e)}")
         raise
 
 
-def save_enhanced_model_architecture(model: EnhancedWakeWordModel, 
-                                   save_dir: Union[str, Path],
-                                   model_name: str = "enhanced_wake_word_model"):
-    """Save enhanced model architecture and detailed configuration."""
+def save_enhanced_model_architecture(model: EnhancedWakeWordModel,
+                                     save_dir: Union[str, Path],
+                                     model_name: str = "wake_word_model"):
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Save enhanced configuration
+
     config_path = save_dir / f"{model_name}_config.json"
     model.save_config(config_path)
-    
-    # Save detailed architecture information
+
     arch_info = {
         'state_dict_keys': list(model.state_dict().keys()),
         'model_structure': str(model),
         'layer_details': {
             'cnn_frontend': {
                 'type': 'EnhancedCNNFrontend',
-                'features': model.cnn_frontend.input_features,
+                'input_features': model.cnn_frontend.input_features,
                 'hidden_dim': model.cnn_frontend.hidden_dim,
-                'attention': model.cnn_frontend.use_attention
+                'attention': model.cnn_frontend.use_attention,
+                'output': '(batch, hidden_dim, T/8) — temporal dim preserved'
             },
             'transformer_backend': {
                 'type': 'EnhancedStreamingTransformer',
                 'input_dim': model.transformer_backend.input_dim,
                 'num_heads': model.transformer_backend.num_heads,
                 'num_layers': model.transformer_backend.num_layers,
-                'hidden_dim': model.transformer_backend.hidden_dim
+                'hidden_dim': model.transformer_backend.hidden_dim,
+                'output': '(batch, hidden_dim) — mean-pooled over time'
             },
             'classifier': {
-                'type': 'Enhanced Multi-layer',
+                'type': 'Multi-layer MLP',
                 'hidden_layers': model.classifier_hidden,
-                'output_dim': 1
+                'output': 'raw logits — apply sigmoid for probabilities'
             }
         },
-        'optimization_target': 'RTX 2060 Super',
-        'torchscript_compatible': True,
-        'estimated_training_time': 'Longer training expected (50-100+ epochs)',
         'saved_at': datetime.now().isoformat()
     }
-    
+
     arch_path = save_dir / f"{model_name}_architecture.json"
     with open(arch_path, 'w') as f:
         json.dump(arch_info, f, indent=2)
 
 
-def load_enhanced_model_from_config(config_path: Union[str, Path], 
-                                  device: str = 'auto',
-                                  logger: Optional[ModelLogger] = None) -> EnhancedWakeWordModel:
-    """Load enhanced model from configuration file."""
+def load_enhanced_model_from_config(config_path: Union[str, Path],
+                                    device: str = 'auto',
+                                    logger: Optional[ModelLogger] = None) -> "EnhancedWakeWordModel":
     with open(config_path, 'r') as f:
         config = json.load(f)
-    
-    # Extract enhanced model parameters
+
     model_params = {
         'input_features': config['input_features'],
         'cnn_hidden': config['cnn_hidden'],
@@ -712,34 +611,27 @@ def load_enhanced_model_from_config(config_path: Union[str, Path],
         'classifier_hidden': config['classifier_hidden'],
         'use_attention': config.get('use_attention', True)
     }
-    
+
     model, device_used = create_enhanced_wake_word_model(
         device=device,
         logger=logger,
         **model_params
     )
-    
+
     if logger:
-        logger.info(f"Enhanced model loaded from config: {config_path}")
-        logger.info(f"Model version: {config.get('model_version', 'unknown')}")
-        logger.info(f"Optimized for: {config.get('optimized_for', 'general use')}")
-    
+        logger.info(f"Model loaded from config: {config_path}")
+
     return model
 
 
-# Example usage and testing
 if __name__ == "__main__":
-    """
-    Example usage of the enhanced wake word model optimized for RTX 2060 Super.
-    """
     import argparse
+    import yaml
 
     parser = argparse.ArgumentParser(description='Wake Word Model Test')
-    parser.add_argument('--config', type=str, default='training_config.yaml',
-                        help='Path to training configuration YAML file')
+    parser.add_argument('--config', type=str, default='training_config.yaml')
     args = parser.parse_args()
 
-    import yaml
     with open(args.config, 'r') as f:
         training_config = yaml.safe_load(f)
 
@@ -747,12 +639,9 @@ if __name__ == "__main__":
     paths_config = training_config['paths']
 
     try:
-        # Create enhanced logger
-        logger = ModelLogger(Path(paths_config['log_dir_models']), "enhanced_model_test")
-        logger.info("Starting enhanced TorchScript-compatible model testing...")
-        logger.info("Optimized for RTX 2060 Super with 8GB VRAM")
+        logger = ModelLogger(Path(paths_config['log_dir_models']), "model_test")
+        logger.info("Starting model test...")
 
-        # Create enhanced model from YAML config
         model, device = create_enhanced_wake_word_model(
             input_features=model_config['input_features'],
             cnn_hidden=model_config['cnn_hidden'],
@@ -765,87 +654,19 @@ if __name__ == "__main__":
             logger=logger
         )
 
-        # Save enhanced model architecture
         save_enhanced_model_architecture(model, Path(paths_config['models_architecture']))
-        
-        # Performance testing with training-like scenarios
-        test_scenarios = [
-            (1, 186, 100, "Single inference"),
-            (48, 186, 150, "Training batch"),
-            (16, 186, 300, "Long sequence batch"),
-            (64, 186, 75, "Large batch, short sequence"),
-        ]
-        
-        logger.info("Testing enhanced model performance...")
+
+        # Quick inference test
         model.eval()
-        
-        total_inference_times = []
-        
-        for batch_size, freq_bins, time_frames, description in test_scenarios:
-            test_input = torch.randn(batch_size, freq_bins, time_frames).to(device)
-            
-            # Warm up
-            for _ in range(3):
-                with torch.no_grad():
-                    _ = model(test_input)
-            
-            # Time multiple runs
-            times = []
-            for _ in range(10):
-                if device == 'cuda':
-                    torch.cuda.synchronize()
-                    start_event = torch.cuda.Event(enable_timing=True)
-                    end_event = torch.cuda.Event(enable_timing=True)
-                    
-                    start_event.record()
-                    with torch.no_grad():
-                        output = model(test_input)
-                    end_event.record()
-                    
-                    torch.cuda.synchronize()
-                    inference_time = start_event.elapsed_time(end_event)
-                    times.append(inference_time)
-                else:
-                    import time
-                    start_time = time.time()
-                    with torch.no_grad():
-                        output = model(test_input)
-                    end_time = time.time()
-                    inference_time = (end_time - start_time) * 1000
-                    times.append(inference_time)
-            
-            avg_time = sum(times) / len(times)
-            total_inference_times.extend(times)
-            
-            throughput = batch_size / (avg_time / 1000) if avg_time > 0 else 0
-            
-            logger.info(f"{description}:")
-            logger.info(f"  Input: {test_input.shape} -> Output: {output.shape}")
-            logger.info(f"  Avg time: {avg_time:.2f}ms | Throughput: {throughput:.1f} samples/sec")
-            logger.info(f"  Per sample: {avg_time/batch_size:.2f}ms")
-        
-        overall_avg = sum(total_inference_times) / len(total_inference_times)
-        logger.info(f"\nOverall average inference time: {overall_avg:.2f}ms")
-        
-        logger.info("=" * 80)
-        logger.info("ENHANCED TORCHSCRIPT-COMPATIBLE MODEL TESTING COMPLETED!")
-        logger.info("=" * 80)
-        logger.info("KEY IMPROVEMENTS:")
-        logger.info("• Model capacity increased from ~2.8M to ~8-12M parameters")
-        logger.info("• Enhanced CNN with residual connections and attention")
-        logger.info("• Deeper transformer with 6 layers and 12 attention heads")
-        logger.info("• Improved classifier with batch normalization and GELU")
-        logger.info("• Optimized for RTX 2060 Super training and inference")
-        logger.info("• Expected to achieve F1 > 0.95 with proper training")
-        logger.info("=" * 80)
-        logger.info("TRAINING RECOMMENDATIONS:")
-        logger.info("• Use the enhanced config with 200 epochs maximum")
-        logger.info("• Set early stopping patience to 35 epochs")
-        logger.info("• Enable mixed precision training")
-        logger.info("• Use learning rate 0.0002 with warmup")
-        logger.info("• Expect 2-4 hours training time on RTX 2060 Super") 
-        logger.info("=" * 80)
-        
+        test_input = torch.randn(4, model_config['input_features'], 200).to(device)
+        with torch.no_grad():
+            logits = model(test_input)
+            probs = torch.sigmoid(logits)  # apply sigmoid at inference time
+        logger.info(f"Test output logits: {logits}")
+        logger.info(f"Test output probs:  {probs}")
+
+        logger.info("Model test completed successfully.")
+
     except Exception as e:
-        print(f"Error during enhanced model testing: {str(e)}")
+        print(f"Error: {str(e)}")
         raise

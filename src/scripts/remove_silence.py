@@ -21,7 +21,7 @@ model.to(device)
 (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
 
 # Paths
-input_dir = Path('src/data/raw/positive')
+input_dir = Path('src/data/raw/positive_addition')
 output_dir = Path('src/data/raw/trimmed')
 output_dir.mkdir(parents=True, exist_ok=True)
 

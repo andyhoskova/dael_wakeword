@@ -23,14 +23,14 @@ MAX_WORKERS = 32
 
 
 def setup_directories():
-    wav_output_dir = Path("src/data/raw/converted")
+    wav_output_dir = Path("src/data/raw/negative_addition")
     wav_output_dir.mkdir(parents=True, exist_ok=True)
     print(f"WAV output: {wav_output_dir.resolve()}")
     return wav_output_dir
 
 
 def get_mp3_files():
-    input_dir = Path("src/data/raw/negative")
+    input_dir = Path("src/data/raw/negative_add")
     print(f"Scanning: {input_dir.resolve()}")
     if not input_dir.exists():
         raise FileNotFoundError(f"Input directory not found: {input_dir.resolve()}")

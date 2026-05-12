@@ -40,9 +40,9 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     engine = WakeWordEngine(
-        model_path=str(PROJECT_ROOT / "models" / "dael_v1.2.pt"),
-        confidence_threshold=0.990,
-        window_duration=1.5,
+        model_path=str(PROJECT_ROOT / "models" / "dael_v1.6.pt"),
+        confidence_threshold=0.8,
+        window_duration=0.75,
         detection_cooldown=2.0,
         callback=on_wake_word_detected,
         silent=True  # Back to silent mode

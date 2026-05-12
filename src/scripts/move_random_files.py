@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 
 
-def transfer_random_audio_files(source_dir, target_dir, num_files=1680):
+def transfer_random_audio_files(source_dir, target_dir, num_files=7000):
 
     # Convert to Path objects for easier handling
     source_path = Path(source_dir)
@@ -86,9 +86,9 @@ def transfer_random_audio_files(source_dir, target_dir, num_files=1680):
 
 def main():
     # Configuration
-    source_directory = "src/data/post_augmentation/negative"
-    target_directory = "src/data/post_augmentation/discard"
-    files_to_transfer = 1680
+    source_directory = "src/data/raw/validated_clips_500-3000_ms"
+    target_directory = "src/data/raw/negative_add"
+    files_to_transfer = 7000
 
     print("Audio File Transfer Script")
     print("=" * 40)
@@ -99,7 +99,7 @@ def main():
 
     try:
         # Set random seed for reproducibility (optional)
-        # random.seed(42)  # Uncomment if you want reproducible results
+        #random.seed(42)  # Uncomment if you want reproducible results
 
         # Perform the transfer
         transferred, failed = transfer_random_audio_files(

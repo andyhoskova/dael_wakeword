@@ -8,11 +8,11 @@ import csv
 import wave
 
 # Set input directory
-input_dir = 'src/data/raw/negative_sounds_silence'
+input_dir = 'src/data/raw/negative_addition'
 
 SOUND_ORIGIN = 'negative'
-SOUND_NAME = 'negative_sounds_silence'
-CSV_NAME = 'negative_sounds_silence_raw'
+SOUND_NAME = 'negative_main'
+CSV_NAME = 'negative_addition2'
 INCLUDE_AUGMENTATION_COLUMNS = True  # Set to False to omit augmentation columns: is_augmented', 'augmentation_index', 'augmentation_type'
 
 # List to hold CSV rows

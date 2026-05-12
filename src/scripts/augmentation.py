@@ -42,9 +42,9 @@ if not hasattr(torchaudio, "info"):
 
 
 # Configuration
-INPUT_DIR = "src/data/pre_augmentation/positive"
-OUTPUT_DIR = "src/data/augmented/positive_augmented"
-CSV_PATH = "src/data/augmented/positive_augmented.csv"
+INPUT_DIR = "src/data/raw/positive_add"
+OUTPUT_DIR = "src/data/post_augmentation/positive_add_augmented"
+CSV_PATH = "src/data/post_augmentation/positive_add_augmented.csv"
 BACKGROUND_DIR = "src/data/pre_augmentation/background_sounds"
 RIR_DIR = "src/data/pre_augmentation/rir_noises"
 SAMPLE_RATE = 16000

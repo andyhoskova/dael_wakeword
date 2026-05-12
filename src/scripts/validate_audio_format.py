@@ -117,7 +117,7 @@ class WAVValidator:
             
             # Show files that don't meet parameters
             if self.results['invalid_files']:
-                print(f"\nFILES THAT DON'T MEET PARAMETERS:")
+                print("\nFILES THAT DON'T MEET PARAMETERS:")
                 for file_info in self.results['invalid_files']:
                     print(f"  • {file_info['file_path']}")
                     issues = []
@@ -128,7 +128,7 @@ class WAVValidator:
                     print(f"    Issues: {', '.join(issues)}")
             
             if self.results['error_files']:
-                print(f"\nFILES WITH ERRORS:")
+                print("\nFILES WITH ERRORS:")
                 for file_info in self.results['error_files']:
                     print(f"  • {file_info['file_path']}")
                     print(f"    Error: {file_info['error']}")
@@ -141,7 +141,7 @@ class WAVValidator:
             
             f.write(f"Target Sample Rate: {self.target_sample_rate} Hz\n")
             f.write(f"Target Bit Depth: {self.target_bit_depth} bit\n")
-            f.write(f"Target Format: PCM\n\n")
+            f.write("Target Format: PCM\n\n")
             
             total_files = len(self.results['valid_files']) + len(self.results['invalid_files']) + len(self.results['error_files'])
             f.write(f"Total files processed: {total_files}\n")
@@ -175,7 +175,7 @@ class WAVValidator:
 
 def main():
     # Fixed directory path and parameters
-    directory = str(PROJECT_ROOT / "src" / "data" / "raw")
+    directory = str(PROJECT_ROOT / "data" / "processed")
     sample_rate = 16000  # 16 kHz
     bit_depth = 16       # 16-bit
     

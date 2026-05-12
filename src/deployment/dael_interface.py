@@ -135,7 +135,7 @@ class DaelONNXEngine:
     def __init__(
         self,
         model_path: str  = str(MODEL_PATH),
-        confidence_threshold: float = 0.995,
+        confidence_threshold: float = 0.8,
         sample_rate: int = 16000,
         chunk_size:  int = 1024,
         window_duration:    float = 1.5,
@@ -461,8 +461,8 @@ def main() -> int:
 
     engine = DaelONNXEngine(
         model_path           = str(MODEL_PATH),
-        confidence_threshold = 0.990,
-        window_duration      = 1.5,
+        confidence_threshold = 0.8,
+        window_duration      = 0.75,
         detection_cooldown   = 2.0,
         callback             = on_wake_word,
         silent               = True,
